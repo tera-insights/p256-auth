@@ -1,0 +1,19 @@
+{
+  "name": "p256-auth",
+  "version": "1.0.0",
+  "description": "An HMAC-based authentication library.",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tera-insights/p256-auth.git"
+  },
+  "author": "Sam Claus",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/tera-insights/p256-auth/issues"
+  },
+  "homepage": "https://github.com/tera-insights/p256-auth#readme"
+}
