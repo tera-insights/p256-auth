@@ -1,7 +1,0 @@
-{
-  "name": "p256-auth",
-  "globalDependencies": {
-    "jquery": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/jquery/jquery.d.ts",
-    "mocha": "registry:dt/mocha#2.2.5+20160619032855"
-  }
-}

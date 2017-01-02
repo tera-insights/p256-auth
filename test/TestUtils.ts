@@ -1,22 +1,25 @@
-/// <reference path="../typings/index.d.ts" />
-
 /**
  * This file contains convenience methods for communication with the test server.
  * 
  * @author Sam Claus
- * @version 12/9/16
+ * @version 1/2/17
  * @copyright Tera Insights, LLC
  */
 
-import * as $ from 'jquery';
+import $ = require('jquery');
 
-export interface AuthenticationMessage {
-    hmac: string; // websafe-base64-encoded hmac secret for @msg
+interface AuthenticationMessage {
+    hmac: string; // base64URL-encoded hmac secret for @msg
     msg: string; // utf-8 message (nothing fancy here)
-    key: string; // websafe-base64-encoded public key
+    key: string; // base64URL-encoded public key
 }
 
-export let testServerDomain = 'http://localhost:8080/';
+interface Secret {
+    secret: string; // base64URL-encoded ECDH secret
+    key: string; // base64URL-encoded public key
+}
+
+const testServerDomain = 'http://localhost:8080/';
 
 export function getServerKey(): Promise<string> {
     return new Promise<string>((succeed, fail) => {
@@ -31,6 +34,20 @@ export function getServerKey(): Promise<string> {
 export function authenticate(message: AuthenticationMessage): Promise<void> {
     return new Promise<void>((succeed, fail) => {
         $.post(testServerDomain + 'message', message, (reply: string, textStatus: string, jqXHR: JQueryXHR) => {
+            if (jqXHR.status == 200) {
+                succeed();
+            } else {
+                throw new Error(reply);
+            }
+        }).fail(() => {
+            throw new Error('Couldn\'t connect to server.');
+        });
+    });
+}
+
+export function testSecret(secret: Secret): Promise<void> {
+    return new Promise<void>((succeed, fail) => {
+        $.post(testServerDomain + 'ecdh', secret, (reply: string, textStatus: string, jqXHR: JQueryXHR) => {
             if (jqXHR.status == 200) {
                 succeed();
             } else {

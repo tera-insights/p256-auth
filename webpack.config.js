@@ -1,7 +1,7 @@
 module.exports = {
   entry: './src/index.ts',
   output: {
-    filename: 'dist/index.js',
+    filename: 'dist/p256Auth.js',
     libraryTarget: "var",
     library: "p256-auth"
   },

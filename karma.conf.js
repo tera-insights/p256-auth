@@ -2,6 +2,9 @@ var webpackConfig = require('./webpack.config');
 
 module.exports = function (config) {
   config.set({
+    mime: {
+      'text/x-typescript': ['ts','tsx']
+    },
     basePath: '',
     frameworks: ['mocha'],
     files: [

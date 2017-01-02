@@ -2,24 +2,24 @@
  * Standalone functionality for producing a secret for HMAC use.
  * 
  * @author Sam Claus
- * @version 12/8/16
+ * @version 1/2/17
  * @copyright Tera Insights, LLC
  */
 
 import { bytesToWebsafeBase64, websafeBase64ToBytes } from './Converters';
+import { serverKeyError } from './Authenticator';
 
 export interface ECDHResult {
-    secret: string; // ECDH Secret (websafe-base64)
-    pubKey: string; // ECDH public (websafe-base64 of 65 bytes)
-    privKey: string; // ECDH private (websafe-base64 of 32 bytes)
+    secret: string; // ECDH Secret (base64URL of 32 bytes)
+    pubKey: string; // ECDH public (base64URL of 65 bytes)
+    privKey: string; // ECDH private (base64URL of 32 bytes)
 }
 
 /**
  * Given a server public key, generates a keypair and computes an ECDH secret.
- * @param {string} serverPublic Websafe-base64 server public key.
- * @returns A promise returning an ECDHResult containing the base64URL-encoded
- *          ECDH secret for use with HMAC, as well as the base64URL-encoded
- *          private and public keys generated.
+ * @param {string} serverPublic Base64URL-encoded server public key.
+ * @returns A promise returning an ECDHResult, or an error if the server key
+ *          doesn't match the NIST P-256 algorithm.
  */
 export function deriveSecret(serverPublic: string): PromiseLike<ECDHResult> {
     let rawServerPublic: Uint8Array = websafeBase64ToBytes(serverPublic);
@@ -44,8 +44,9 @@ export function deriveSecret(serverPublic: string): PromiseLike<ECDHResult> {
                     public: serverKey
                 } as any, keyPair.privateKey, {
                         name: 'HMAC',
+                        hash: 'SHA-256',
                         length: 256
-                    }, true, []).then(secret => {
+                    }, true, ['sign']).then(secret => {
                         return Promise.all([
                             crypto.subtle.exportKey('raw', secret),
                             crypto.subtle.exportKey('jwk', keyPair.privateKey)
@@ -64,5 +65,7 @@ export function deriveSecret(serverPublic: string): PromiseLike<ECDHResult> {
                         });
                     });
             });
+        }, error => {
+            throw serverKeyError;
         });
 }

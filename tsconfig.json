@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es6",
+        "removeComments": true,
+        "preserveConstEnums": true,
+        "outDir": "dist",
+        "sourceMap": true,
+        "declaration": true,
+        "lib": [
+            "es6",
+            "dom",
+            "es2015.promise"
+        ]
+    }, "files": [
+        "./src/index.ts"
+    ]
+}

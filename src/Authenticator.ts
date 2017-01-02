@@ -1,5 +1,9 @@
 import { Converters, bytesToWebsafeBase64, websafeBase64ToBytes } from './Converters';
 
+export const serverKeyError = new Error('Server public key doesn\'t conform to NIST P-256 curve. If the server uses OpenSSL, ' +
+    'the algorithm should be prefixed with "p" or "prime", indicate a size of 256 bits, and be suffixed' +
+    'with "v1" or lack a suffix altogether.');
+
 interface ExternalKeyPair {
     publicKey: string; // base64URL-encoded public key (04 + x + y)
     wrappedPrivateKey: string; // base64URL-encoding of wrapped-jwk private key
@@ -8,12 +12,19 @@ interface ExternalKeyPair {
     iv: string; // base64URL-encoded initialization vector (12 bytes) used for key wrapping
 }
 
+declare class TextEncoder {
+    constructor()
+    encode(str: string): Uint8Array
+}
+
+type Encoding = 'utf-8' | 'hex' | 'base64' | 'base64URL';
+
 /**
  * Stores session keys and generates HMAC messages
  * using them.
  * 
  * @author Sam Claus
- * @version 12/8/16
+ * @version 1/2/17
  * @copyright Tera Insights, LLC
  */
 export class Authenticator {
@@ -24,7 +35,8 @@ export class Authenticator {
 
     /**
      * Generates a new ECDH key pair for the object. Must be
-     * called before computing an HMAC.
+     * called before computing an HMAC, unless a keypair is
+     * imported.
      * @returns A promise fulfilling when key pair generation
      *          is finished.
      */
@@ -61,7 +73,7 @@ export class Authenticator {
             }, false, []).then(serverPubKey => {
                 this.serverPublic = serverPubKey;
                 return;
-            });
+            }, () => { throw serverKeyError; });
     }
 
     /**
@@ -70,23 +82,46 @@ export class Authenticator {
      * with the message. Results in an error if the Authenticator
      * object hasn't been fed a server public key and generated or
      * imported a client-side key pair.
-     * @param {Uint8Array} message Bytes to sign.
+     * @param {Uint8Array} message Message to sign.
+     * @param {string} encoding If @message is a string, the encoding
+     *                          to decode it to bytes with.
      * @returns A promise which either fulfills with an HMAC
-     *          signature, or fails because either a server key
-     *          or client key pair were never provided.
+     *          signature, or fails because a server key and/or client
+     *          key pair were never provided.
      */
-    computeHMAC(message: Uint8Array): PromiseLike<string> {
+    computeHMAC(message: Uint8Array | string, encoding?: Encoding): PromiseLike<string> {
+        let msgBytes: Uint8Array = message instanceof Uint8Array ? message : undefined;
+        if (!msgBytes) {
+            switch (encoding) {
+                case 'utf-8':
+                    msgBytes = new TextEncoder().encode(message as string);
+                    break;
+                case 'hex':
+                    msgBytes = Converters.hexToBytes(message as string);
+                    break;
+                case 'base64':
+                    msgBytes = Converters.base64ToUint8Array(message as string);
+                    break;
+                case 'base64URL':
+                    msgBytes = websafeBase64ToBytes(message as string);
+                    break;
+                default:
+                    throw new Error('Not a valid encoding!');
+            }
+        }
+
         return crypto.subtle.deriveKey({
             name: 'ECDH',
             namedCurve: 'P-256',
             public: this.serverPublic
         } as any, this.clientPrivate, {
                 name: 'HMAC',
+                hash: 'SHA-256',
                 length: 256
-            }, false, []).then(secret => {
+            }, false, ['sign']).then(secret => {
                 return crypto.subtle.sign({
                     name: 'HMAC'
-                } as any, secret, message).then(signedMessage => {
+                } as any, secret, msgBytes).then(signedMessage => {
                     return bytesToWebsafeBase64(new Uint8Array(signedMessage));
                 });
             });
@@ -96,7 +131,7 @@ export class Authenticator {
      * Exports the [04 + x + y] public key, encoded to base64URL,
      * for use server-side.
      * @returns A promise which either fulfills with the base64URL-encoded
-     *          public key, or fail because no client key pair was provided.
+     *          public key, or fails because no client key pair was attained.
      */
     getPublic(): PromiseLike<string> {
         return crypto.subtle.exportKey('raw', this.clientPublic)
@@ -112,14 +147,14 @@ export class Authenticator {
      * @param {Uint8Array} password Password used to derive AES key
      *                              for wrapping. Wiped from memory
      *                              immediately following usage.
-     * @returns A promise which either fulfills with an exported key,
-     *          or fails because a bad password was provided or no
-     *          keypair was generated.
+     * @returns A promise which either fulfills with an external key
+     *          pair, or fails because a bad password was provided or
+     *          no keypair was generated.
      */
     exportKey(password: Uint8Array): PromiseLike<ExternalKeyPair> {
         return crypto.subtle.importKey('raw', password, {
             name: 'PBKDF2'
-        }, false, ['deriveKey']).then((derivationKey: CryptoKey) => {
+        }, false, ['deriveKey']).then(derivationKey => {
             password.fill(0, 0, password.length);
 
             let salt: ArrayBufferView = crypto.getRandomValues(new Uint8Array(16));
@@ -133,12 +168,12 @@ export class Authenticator {
             }, derivationKey, {
                     name: 'AES-GCM',
                     length: 256
-                }, false, ['wrapKey']).then((aesKey: CryptoKey) => {
+                }, false, ['wrapKey']).then(aesKey => {
                     let iv: ArrayBufferView = crypto.getRandomValues(new Uint8Array(12));
 
                     return crypto.subtle.wrapKey('jwk', this.clientPrivate, aesKey, {
                         name: 'AES-GCM',
-                        iv: iv, // not included in typings, so cast to 'any'
+                        iv: iv,
                         additionalData: iv
                     } as any).then(wrappedPrivate => {
                         return this.getPublic().then(extPublic => {
@@ -157,8 +192,7 @@ export class Authenticator {
 
     /**
      * Imports client-side keys from an external key pair object.
-     * @param {ExternalKeyPair} keyPair The external key pair object
-     *                                  with instructions for unwrapping.
+     * @param {ExternalKeyPair} keyPair The external key pair.
      * @param {Uint8Array} password Password used to derive AES key for
      *                              unwrapping the private key. Wiped from
      *                              memory immediately following usage.
@@ -171,9 +205,9 @@ export class Authenticator {
 
         return crypto.subtle.importKey('raw', password, {
             name: 'PBKDF2'
-        }, false, ['deriveKey']).then((derivationKey: CryptoKey) => {
+        }, false, ['deriveKey']).then(derivationKey => {
             password.fill(0, 0, password.length);
-            
+
             return crypto.subtle.deriveKey({
                 name: 'PBKDF2',
                 salt: websafeBase64ToBytes(keyPair.salt),
@@ -182,15 +216,15 @@ export class Authenticator {
             }, derivationKey, {
                     name: 'AES-GCM',
                     length: 256
-                }, false, ['unwrapKey']).then((aesKey: CryptoKey) => {
+                }, false, ['unwrapKey']).then(aesKey => {
                     let iv: ArrayBuffer = websafeBase64ToBytes(keyPair.iv).buffer;
                     return crypto.subtle.unwrapKey('jwk', wrappedPrivate, aesKey, {
                         name: 'AES-GCM',
-                        iv: iv, // not included in typings, so cast to 'any'
+                        iv: iv,
                         additionalData: iv
                     } as any, {
                         name: 'ECDH',
-                        namedCurve: 'P-256' // not included in typings, so cast to 'any'
+                        namedCurve: 'P-256'
                     } as any, false, ['deriveKey']).then(unwrappedPrivate => {
                         return crypto.subtle.importKey('raw', websafeBase64ToBytes(keyPair.publicKey), {
                             name: 'ECDH',
@@ -201,7 +235,7 @@ export class Authenticator {
 
                             return;
                         });
-                    });
+                    }, () => { throw new Error('User provided incorrect password!'); });
                 });
         });
     }

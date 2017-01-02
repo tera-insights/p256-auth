@@ -1,0 +1,2 @@
+# Ignore source maps in the NPM distribution
+dist/*.map
