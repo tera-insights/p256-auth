@@ -4,10 +4,6 @@ exports.serverKeyError = new Error('Server public key doesn\'t conform to NIST P
     'the algorithm should be prefixed with "p" or "prime", indicate a size of 256 bits, and be suffixed' +
     'with "v1" or lack a suffix altogether.');
 class Authenticator {
-    constructor() {
-        this.clientPrivate = undefined;
-        this.serverPublic = undefined;
-    }
     generateKeyPair() {
         return crypto.subtle.generateKey({
             name: 'ECDH',
@@ -146,6 +142,10 @@ class Authenticator {
                 }, () => { throw new Error('User provided incorrect password!'); });
             });
         });
+    }
+    constructor() {
+        this.clientPrivate = undefined;
+        this.serverPublic = undefined;
     }
 }
 exports.Authenticator = Authenticator;

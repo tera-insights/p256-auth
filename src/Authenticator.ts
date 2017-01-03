@@ -4,7 +4,7 @@ export const serverKeyError = new Error('Server public key doesn\'t conform to N
     'the algorithm should be prefixed with "p" or "prime", indicate a size of 256 bits, and be suffixed' +
     'with "v1" or lack a suffix altogether.');
 
-interface ExternalKeyPair {
+export interface ExternalKeyPair {
     publicKey: string; // base64URL-encoded public key (04 + x + y)
     wrappedPrivateKey: string; // base64URL-encoding of wrapped-jwk private key
     salt: string; // base64URL-encoded salt used for AES key derivation (using PBKDF2)
@@ -17,7 +17,7 @@ declare class TextEncoder {
     encode(str: string): Uint8Array
 }
 
-type Encoding = 'utf-8' | 'hex' | 'base64' | 'base64URL';
+export type Encoding = 'utf-8' | 'hex' | 'base64' | 'base64URL';
 
 /**
  * Stores session keys and generates HMAC messages
