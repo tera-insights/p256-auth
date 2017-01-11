@@ -156,9 +156,9 @@ export class Authenticator {
             name: 'PBKDF2'
         }, false, ['deriveKey']).then(derivationKey => {
             password.fill(0, 0, password.length);
-
+            
             let salt: ArrayBufferView = crypto.getRandomValues(new Uint8Array(16));
-            let rounds: number = 10000 * (0.9 + (Math.random() * 0.2)); // 10,000 ± 10%
+            let rounds: number = Math.floor(10000 * (0.9 + (Math.random() * 0.2))); // 10,000 ± 10%
 
             return crypto.subtle.deriveKey({
                 name: 'PBKDF2',
