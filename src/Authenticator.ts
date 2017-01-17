@@ -1,30 +1,16 @@
-import { Converters, bytesToWebsafeBase64, websafeBase64ToBytes } from './Converters';
+import { Converters, bytesToWebsafeBase64, websafeBase64ToBytes, Encoding, decodeString } from './Converters';
+import { Crypto, ExternalKeyPair, InternalKeyPair } from './Crypto';
 
 export const serverKeyError = new Error('Server public key doesn\'t conform to NIST P-256 curve. If the server uses OpenSSL, ' +
     'the algorithm should be prefixed with "p" or "prime", indicate a size of 256 bits, and be suffixed' +
     'with "v1" or lack a suffix altogether.');
 
-export interface ExternalKeyPair {
-    publicKey: string; // base64URL-encoded public key (04 + x + y)
-    wrappedPrivateKey: string; // base64URL-encoding of wrapped-jwk private key
-    salt: string; // base64URL-encoded salt used for AES key derivation (using PBKDF2)
-    rounds: number; // rounds of SHA256 used for AES key derivation
-    iv: string; // base64URL-encoded initialization vector (12 bytes) used for key wrapping
-}
-
-declare class TextEncoder {
-    constructor()
-    encode(str: string): Uint8Array
-}
-
-export type Encoding = 'utf-8' | 'hex' | 'base64' | 'base64URL';
-
 /**
  * Stores session keys and generates HMAC messages
- * using them.
+ * using them in ECDH.
  * 
  * @author Sam Claus
- * @version 1/2/17
+ * @version 1/17/17
  * @copyright Tera Insights, LLC
  */
 export class Authenticator {
@@ -41,10 +27,7 @@ export class Authenticator {
      *          is finished.
      */
     generateKeyPair(): PromiseLike<void> {
-        return crypto.subtle.generateKey({
-            name: 'ECDH',
-            namedCurve: 'P-256'
-        }, true, ['deriveKey']).then(keyPair => {
+        return Crypto.generateKeys('ECDH').then(keyPair => {
             this.clientPrivate = keyPair.privateKey;
             this.clientPublic = keyPair.publicKey;
             return;
@@ -90,25 +73,7 @@ export class Authenticator {
      *          key pair were never provided.
      */
     computeHMAC(message: Uint8Array | string, encoding?: Encoding): PromiseLike<string> {
-        let msgBytes: Uint8Array = message instanceof Uint8Array ? message : undefined;
-        if (!msgBytes) {
-            switch (encoding) {
-                case 'utf-8':
-                    msgBytes = new TextEncoder().encode(message as string);
-                    break;
-                case 'hex':
-                    msgBytes = Converters.hexToBytes(message as string);
-                    break;
-                case 'base64':
-                    msgBytes = Converters.base64ToUint8Array(message as string);
-                    break;
-                case 'base64URL':
-                    msgBytes = websafeBase64ToBytes(message as string);
-                    break;
-                default:
-                    throw new Error('Not a valid encoding!');
-            }
-        }
+        let msgBytes: Uint8Array = message instanceof Uint8Array ? message : decodeString(message, encoding);
 
         return crypto.subtle.deriveKey({
             name: 'ECDH',
@@ -134,10 +99,7 @@ export class Authenticator {
      *          public key, or fails because no client key pair was attained.
      */
     getPublic(): PromiseLike<string> {
-        return crypto.subtle.exportKey('raw', this.clientPublic)
-            .then(rawPublic => {
-                return bytesToWebsafeBase64(new Uint8Array(rawPublic));
-            });
+        return Crypto.exportPublic(this.clientPublic);
     }
 
     /**
@@ -152,41 +114,8 @@ export class Authenticator {
      *          no keypair was generated.
      */
     exportKey(password: Uint8Array): PromiseLike<ExternalKeyPair> {
-        return crypto.subtle.importKey('raw', password, {
-            name: 'PBKDF2'
-        }, false, ['deriveKey']).then(derivationKey => {
-            password.fill(0, 0, password.length);
-            
-            let salt: ArrayBufferView = crypto.getRandomValues(new Uint8Array(16));
-            let rounds: number = Math.floor(10000 * (0.9 + (Math.random() * 0.2))); // 10,000 ± 10%
-
-            return crypto.subtle.deriveKey({
-                name: 'PBKDF2',
-                salt: salt,
-                iterations: rounds,
-                hash: { name: 'SHA-256' }
-            }, derivationKey, {
-                    name: 'AES-GCM',
-                    length: 256
-                }, false, ['wrapKey']).then(aesKey => {
-                    let iv: ArrayBufferView = crypto.getRandomValues(new Uint8Array(12));
-
-                    return crypto.subtle.wrapKey('jwk', this.clientPrivate, aesKey, {
-                        name: 'AES-GCM',
-                        iv: iv,
-                        additionalData: iv
-                    } as any).then(wrappedPrivate => {
-                        return this.getPublic().then(extPublic => {
-                            return {
-                                publicKey: extPublic,
-                                wrappedPrivateKey: bytesToWebsafeBase64(new Uint8Array(wrappedPrivate)),
-                                salt: bytesToWebsafeBase64(new Uint8Array(salt.buffer)),
-                                rounds: rounds,
-                                iv: bytesToWebsafeBase64(new Uint8Array(iv.buffer))
-                            }
-                        });
-                    });
-                });
+        return Crypto.exportKeyPair(this.clientPublic, this.clientPrivate, 'ECDH', password).then(extKey => {
+            return extKey;
         });
     }
 
@@ -197,46 +126,14 @@ export class Authenticator {
      *                              unwrapping the private key. Wiped from
      *                              memory immediately following usage.
      * @returns A promise which either fulfills upon successfully importing
-     *          the key pair, or fails due to an incorrect password or a
-     *          a flaw in the external key pair object.
+     *          the key pair, or fails due to either an incorrect password
+     *          or the external key pair was not a valid ECDH representation.
      */
     importKey(keyPair: ExternalKeyPair, password: Uint8Array): PromiseLike<void> {
-        let wrappedPrivate: Uint8Array = websafeBase64ToBytes(keyPair.wrappedPrivateKey);
-
-        return crypto.subtle.importKey('raw', password, {
-            name: 'PBKDF2'
-        }, false, ['deriveKey']).then(derivationKey => {
-            password.fill(0, 0, password.length);
-
-            return crypto.subtle.deriveKey({
-                name: 'PBKDF2',
-                salt: websafeBase64ToBytes(keyPair.salt),
-                iterations: keyPair.rounds,
-                hash: { name: 'SHA-256' }
-            }, derivationKey, {
-                    name: 'AES-GCM',
-                    length: 256
-                }, false, ['unwrapKey']).then(aesKey => {
-                    let iv: ArrayBuffer = websafeBase64ToBytes(keyPair.iv).buffer;
-                    return crypto.subtle.unwrapKey('jwk', wrappedPrivate, aesKey, {
-                        name: 'AES-GCM',
-                        iv: iv,
-                        additionalData: iv
-                    } as any, {
-                        name: 'ECDH',
-                        namedCurve: 'P-256'
-                    } as any, false, ['deriveKey']).then(unwrappedPrivate => {
-                        return crypto.subtle.importKey('raw', websafeBase64ToBytes(keyPair.publicKey), {
-                            name: 'ECDH',
-                            namedCurve: 'P-256'
-                        }, true, []).then(publicKey => {
-                            this.clientPrivate = unwrappedPrivate;
-                            this.clientPublic = publicKey;
-
-                            return;
-                        });
-                    }, () => { throw new Error('User provided incorrect password!'); });
-                });
+        return Crypto.importKeyPair(keyPair, password).then(intKey => {
+            this.clientPublic = intKey.pubKey;
+            this.clientPrivate = intKey.privKey;
+            return;
         });
     }
 

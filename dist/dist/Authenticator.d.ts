@@ -17,6 +17,5 @@ export declare class Authenticator {
     getPublic(): PromiseLike<string>;
     exportKey(password: Uint8Array): PromiseLike<ExternalKeyPair>;
     importKey(keyPair: ExternalKeyPair, password: Uint8Array): PromiseLike<void>;
-    sign(message: string | Uint8Array, encoding?: Encoding): PromiseLike<string>;
     constructor();
 }

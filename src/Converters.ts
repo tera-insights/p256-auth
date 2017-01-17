@@ -1,3 +1,10 @@
+declare class TextEncoder {
+    constructor()
+    encode(str: string): Uint8Array
+}
+
+export type Encoding = 'utf-8' | 'hex' | 'base64' | 'base64URL';
+
 /**
  * Simple binary, hex, and base64 conversion functions.
  * 
@@ -155,4 +162,38 @@ export function bytesToWebsafeBase64(data: Uint8Array): string {
  */
 export function websafeBase64ToBytes(data: string): Uint8Array {
     return Converters.base64ToUint8Array(Converters.base64URLToBase64(data));
+}
+
+/**
+ * Given a string and an encoding, breaks the string into raw bytes.
+ * @param {string} str The string to decode.
+ * @param {Encoding} encoding The encoding to decode with, utf-8 by
+ *                            default.
+ * @returns A Uint8Array filled with the decoded bytes.
+ */
+export function decodeString(str: string, encoding?: Encoding): Uint8Array {
+    let bytes: Uint8Array;
+
+    if(!encoding) {
+        encoding = 'utf-8';
+    }
+
+    switch (encoding) {
+        case 'utf-8':
+            bytes = new TextEncoder().encode(str as string);
+            break;
+        case 'hex':
+            bytes = Converters.hexToBytes(str as string);
+            break;
+        case 'base64':
+            bytes = Converters.base64ToUint8Array(str as string);
+            break;
+        case 'base64URL':
+            bytes = websafeBase64ToBytes(str as string);
+            break;
+        default:
+            throw new Error('Not a valid encoding!');
+    }
+
+    return bytes;
 }

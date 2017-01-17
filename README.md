@@ -11,7 +11,8 @@ keys never touch the javascript**.
 The *P256-Auth* API is very straightforward. Just install it using `npm install p256-auth`, then you can begin.
 Keep in mind the library only works with two key formats: base64URL-encoded 65-byte public keys, and it's own
 proprietary external key format (JSON), which is used for exporting and importing key pairs between Authenticator instances--and
-they can be safely saved to file and used later on.
+they can be safely saved to file and used later on. Due to the asynchronous nature of SubtleCrypto, all API calls return promises
+except `createAuthenticator()`. See the [wiki]() for full API documentation.
 
 ### General Usage
 ```
@@ -20,14 +21,16 @@ var serverKey = getKeyFromYourServer(); // server-side public ECDH key
 
 var authenticator = p256Auth.createAuthenticator();
 
-authenticator.generateKeyPair();
-authenticator.importServerKey(serverKey);
-var clientKey = authenticator.getPublic(); // client-side public ECDH key
-sendPublicKeyToServer(clientKey);
+authenticator.generateKeyPair().then(() => {
+    Promise.all([authenticator.importServerKey(serverKey), authenticator.getPublic()]).then(([undefined, clientKey]) => {
+        sendPublicKeyToServer(clientKey);
 
-var message = produceAMessageForYourServer(); // must be Uint8Array
-var hmacSecret = authenticator.computeHMAC(message); // websafe-base64 string
-sendMessageToYourServer(hmacSecret, message);
+        var message = produceAMessageForYourServer(); // must be Uint8Array or string
+        authenticator.computeHMAC(message).then(hmacSecret => {
+            sendMessageToYourServer(hmacSecret, message);
+        }); // fulfills with websafe-base64 string
+    });
+});
 ```
 
 ### Exporting and importing keys
@@ -36,21 +39,38 @@ When you export keys, the private undergoes a wrapping process before being expo
 API, and a `Uint8Array` password must be provided for wrapping. The reason the password is passed as a `Uint8Array`
 and not a `string` is because strings are heavily abstracted in Javascript, but the library needs to wipe the
 password from memory immediately following use to maximize security, which can only really be achieved with an
-`ArrayBuffer` type.
+`ArrayBuffer` or child type.
 
 ```
-var externalKeyPair = authenticator.exportKey(somePasswordToEncryptWith); // password must be Uint8Array
+// Continued from above...
+authenticator.exportKey(somePasswordToEncryptWith).then(extKey => { // password must be Uint8Array
+    var authenticator2 = p256Auth.createAuthenticator();
 
-var authenticator2 = p256Auth.createAuthenticator();
-authenticator2.importKey(externalKeyPair, samePasswordNewInstance); // previous password instance was wiped for security
-authenticator2.importServerKey(serverKey);
+    Promise.all([authenticator2.importKey(externalKeyPair, samePasswordNewInstance), authenticator2.importServerKey(serverKey)]).then(() => {
+        authenticator2.computeHMAC(message).then(sameSecret => {
+            sendMessageToYourServer(sameSecret, message);
+        });
+    });
+});
+```
 
-var sameSecret = authenticator2.computeHMAC(message);
-sendMessageToYourServer(sameSecret, message);
+### Signing messages
+
+While *P256-Auth* was primarily designed for HMAC usage, it also contains signing functionality.
+
+```
+// Continued from above
+authenticator.sign('some message', 'utf-8').then(signature => {
+    // do something with the Uint8Array signature
+});
+
+authenticator.sign(someRawUint8Array).then(signature => {
+    // same deal as before
+});
 ```
 
 ### Use with Typescript
-*P256-Auth* is packaged with types along the Javascript, so NPM and Typescript do the heavy lifting for you. Simply use
+*P256-Auth* is packaged with types alongside the Javascript, so NPM and Typescript do the heavy lifting for you. Simply use
 `import` in place of `var` when requiring the package, and types will be linked automatically.
 ```
 import p256Auth = require('p256-auth');

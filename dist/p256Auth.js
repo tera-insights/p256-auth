@@ -1,4 +1,4 @@
-var p256-auth =
+var p256Auth =
 /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
@@ -150,7 +150,7 @@ class Authenticator {
         }, false, ['deriveKey']).then(derivationKey => {
             password.fill(0, 0, password.length);
             let salt = crypto.getRandomValues(new Uint8Array(16));
-            let rounds = 10000 * (0.9 + (Math.random() * 0.2));
+            let rounds = Math.floor(10000 * (0.9 + (Math.random() * 0.2)));
             return crypto.subtle.deriveKey({
                 name: 'PBKDF2',
                 salt: salt,

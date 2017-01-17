@@ -1,14 +1,20 @@
 /**
- * Tests for the Authenticator library.
+ * Tests for the Authenticator functionality.
  * 
  * @author Sam Claus
- * @version 1/2/17
+ * @version 1/17/17
  * @copyright Tera Insights
  */
 
 import { Authenticator } from '../src/Authenticator';
-import { getServerKey, authenticate } from './TestUtils'
+import { getServerKey, authenticate, verifySignature } from './TestUtils'
+import { websafeBase64ToBytes } from '../src/Converters';
 import mocha = require('mocha');
+
+declare class TextEncoder {
+    constructor()
+    encode(str: string): Uint8Array
+}
 
 describe('Authenticator', () => {
     it('should produce a valid authentication message', () => {

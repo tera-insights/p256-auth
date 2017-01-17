@@ -2,12 +2,13 @@
  * Library entry point. Throws an error if SubtleCrypto isn't supported.
  * 
  * @author Sam Claus
- * @version 12/8/16
+ * @version 1/17/16
  * @copyright Tera Insights, LLC
  */
 
 import { noECDH } from './BrowserCheck';
 import { Authenticator } from './Authenticator'
+import { Signer } from './Signer';
 import { ECDHResult, deriveSecret } from './SecretDerivation';
 
 export function createAuthenticator(): Authenticator {
@@ -15,6 +16,14 @@ export function createAuthenticator(): Authenticator {
         throw new Error('No crypto functionality detected! Use Chrome or Firefox.');
     } else {
         return new Authenticator();
+    }
+}
+
+export function createSigner(): Signer {
+    if (noECDH) {
+        throw new Error('No crypto functionality detected! Use Chrome or Firefox.');
+    } else {
+        return new Signer();
     }
 }
 

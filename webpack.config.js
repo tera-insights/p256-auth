@@ -1,9 +1,10 @@
 module.exports = {
   entry: './src/index.ts',
   output: {
-    filename: 'dist/p256Auth.js',
+    path: 'dist',
+    filename: 'p256Auth.js',
     libraryTarget: "var",
-    library: "p256-auth"
+    library: "p256Auth"
   },
   resolve: {
     extensions: ['.ts', '.js', '.tsx', '.jsx']
@@ -16,7 +17,7 @@ module.exports = {
         loader: 'ts-loader'
       },
       {
-        test: /\.json$/, 
+        test: /\.json$/,
         loader: "json-loader"
       }
     ]

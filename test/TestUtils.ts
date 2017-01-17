@@ -8,13 +8,13 @@
 
 import $ = require('jquery');
 
-interface AuthenticationMessage {
+export interface AuthenticationMessage {
     hmac: string; // base64URL-encoded hmac secret for @msg
     msg: string; // utf-8 message (nothing fancy here)
     key: string; // base64URL-encoded public key
 }
 
-interface Secret {
+export interface Secret {
     secret: string; // base64URL-encoded ECDH secret
     key: string; // base64URL-encoded public key
 }
@@ -55,6 +55,24 @@ export function testSecret(secret: Secret): Promise<void> {
             }
         }).fail(() => {
             throw new Error('Couldn\'t connect to server.');
+        });
+    });
+}
+
+export function verifySignature(pubKeyRaw: Uint8Array, signature: Uint8Array, message: Uint8Array): PromiseLike<void> {
+    return crypto.subtle.importKey('raw', pubKeyRaw, {
+        name: 'ECDSA',
+        namedCurve: 'P-256'
+    } as any, false, ['verify']).then(pubKey => {
+        return crypto.subtle.verify({
+            name: 'ECDSA',
+            hash: 'SHA-256'
+        } as any, pubKey, signature, message).then(isValid => {
+            if (isValid) {
+                return;
+            } else {
+                throw new Error('Invalid signature.');
+            }
         });
     });
 }
