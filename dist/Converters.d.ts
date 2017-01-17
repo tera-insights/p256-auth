@@ -1,3 +1,4 @@
+export declare type Encoding = 'utf-8' | 'hex' | 'base64' | 'base64URL';
 export declare class Converters {
     static stringToUint8Array(data: string): Uint8Array;
     static Uint8ArrayToString(data: Uint8Array): string;
@@ -12,3 +13,4 @@ export declare class Converters {
 }
 export declare function bytesToWebsafeBase64(data: Uint8Array): string;
 export declare function websafeBase64ToBytes(data: string): Uint8Array;
+export declare function decodeString(str: string, encoding?: Encoding): Uint8Array;

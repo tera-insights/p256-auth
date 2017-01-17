@@ -74,4 +74,28 @@ function websafeBase64ToBytes(data) {
     return Converters.base64ToUint8Array(Converters.base64URLToBase64(data));
 }
 exports.websafeBase64ToBytes = websafeBase64ToBytes;
+function decodeString(str, encoding) {
+    let bytes;
+    if (!encoding) {
+        encoding = 'utf-8';
+    }
+    switch (encoding) {
+        case 'utf-8':
+            bytes = new TextEncoder().encode(str);
+            break;
+        case 'hex':
+            bytes = Converters.hexToBytes(str);
+            break;
+        case 'base64':
+            bytes = Converters.base64ToUint8Array(str);
+            break;
+        case 'base64URL':
+            bytes = websafeBase64ToBytes(str);
+            break;
+        default:
+            throw new Error('Not a valid encoding!');
+    }
+    return bytes;
+}
+exports.decodeString = decodeString;
 //# sourceMappingURL=Converters.js.map
