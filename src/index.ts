@@ -11,6 +11,8 @@ import { Authenticator } from './Authenticator'
 import { Signer } from './Signer';
 import { ECDHResult, deriveSecret } from './SecretDerivation';
 
+export { ExternalKeyPair } from './Crypto';
+
 export function createAuthenticator(): Authenticator {
     if (noECDH) {
         throw new Error('No crypto functionality detected! Use Chrome or Firefox.');
