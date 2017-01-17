@@ -8,6 +8,7 @@
     "dist/index.*",
     "dist/BrowserCheck.*",
     "dist/Converters.*",
+    "dist/Crypto.*",
     "dist/Authenticator.*",
     "dist/SecretDerivation.*",
     "dist/Signer.*"
