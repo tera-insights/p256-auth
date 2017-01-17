@@ -12,7 +12,8 @@ The *P256-Auth* API is very straightforward. Just install it using `npm install 
 Keep in mind the library only works with two key formats: base64URL-encoded 65-byte public keys, and it's own
 proprietary external key format (JSON), which is used for exporting and importing key pairs between Authenticator instances--and
 they can be safely saved to file and used later on. Due to the asynchronous nature of SubtleCrypto, all API calls return promises
-except `createAuthenticator()`. See the [wiki]() for full API documentation.
+except top-level functions like `createAuthenticator()`. See the [wiki](https://github.com/tera-insights/p256-auth/wiki) for full
+API documentation.
 
 ### General Usage
 ```
@@ -59,13 +60,29 @@ authenticator.exportKey(somePasswordToEncryptWith).then(extKey => { // password 
 While *P256-Auth* was primarily designed for HMAC usage, it also contains signing functionality.
 
 ```
-// Continued from above
-authenticator.sign('some message', 'utf-8').then(signature => {
-    // do something with the Uint8Array signature
-});
+var signer = p256Auth.createSigner();
 
-authenticator.sign(someRawUint8Array).then(signature => {
-    // same deal as before
+signer.generateKeys().then(() => {
+    signer.sign(someUint8Array).then(base64URLEncodedSignature => {
+        // use the signature
+    });
+    signer.sign(someString, 'utf-8').then(anotherSignature => {
+        // ...
+    });
+});
+```
+
+The *Signer* portion of the library also has import/export functionality, but its external keys
+**must not be mixed** with *Authenticator* keys. The reason for this is that SubtleCrypto is very
+strict about not using ECDH keys with ECDSA functions, and so forth, and wrapped keys know there
+algorithm internally--meaning if you try to import an ECDH key for signing you'll get a weird error.
+
+```
+// Continued from above...
+signer.exportKey(somePasswordWhichMustBeUint8Array).then(extKey => {
+    signer.importKey(extKey, samePasswordNewInstance).then(() => {
+        // sign some stuff
+    });
 });
 ```
 

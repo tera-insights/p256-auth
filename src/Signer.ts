@@ -86,7 +86,7 @@ export class Signer {
      *          incorrect password was provided or the external key
      *          pair was not a valid ECDSA representation.
      */
-    public importKey(keyPair: ExternalKeyPair, password: Uint8Array): PromiseLike<void> {
+    importKey(keyPair: ExternalKeyPair, password: Uint8Array): PromiseLike<void> {
         return Crypto.importKeyPair(keyPair, password).then(intKey => {
             this.privateKey = intKey.privKey;
             this.publicKey = intKey.pubKey;
