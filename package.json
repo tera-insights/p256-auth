@@ -9,7 +9,8 @@
     "dist/BrowserCheck.*",
     "dist/Converters.*",
     "dist/Authenticator.*",
-    "dist/SecretDerivation.*"
+    "dist/SecretDerivation.*",
+    "dist/Signer.*"
   ],
   "scripts": {
     "prestart": "npm install",
